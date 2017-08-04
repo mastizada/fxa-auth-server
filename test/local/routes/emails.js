@@ -823,6 +823,66 @@ describe('/recovery_email', () => {
     })
   })
 
+  describe('/recovery_email/set_primary', () => {
+
+    it('should set primary email on account', () => {
+      mockDB.getSecondaryEmail = sinon.spy(() => {
+        return P.resolve({
+          uid: mockRequest.auth.credentials.uid,
+          isVerified: true,
+          isPrimary: false
+        })
+      })
+
+      route = getRoute(accountRoutes, '/recovery_email/set_primary')
+      return runTest(route, mockRequest, (response) => {
+        assert.ok(response)
+        assert.equal(mockDB.setPrimaryEmail.callCount, 1, 'call db.setPrimaryEmail')
+        assert.equal(mockPush.notifyProfileUpdated.callCount, 1, 'call db.notifyProfileUpdated')
+      })
+        .then(function () {
+          mockDB.setPrimaryEmail.reset()
+          mockPush.notifyProfileUpdated.reset()
+        })
+    })
+
+    it('should fail when setting email to email user does not own', () => {
+      mockDB.getSecondaryEmail = sinon.spy(() => {
+        return P.resolve({
+          uid: uuid.v4('binary').toString('hex'),
+          isVerified: true,
+          isPrimary: false
+        })
+      })
+
+      route = getRoute(accountRoutes, '/recovery_email/set_primary')
+      return runTest(route, mockRequest, () => {
+        assert.fail('Should have changing email')
+      })
+        .catch((err) => {
+          assert.equal(err.errno, 148, 'correct errno changing email to non account email')
+        })
+    })
+
+    it('should fail when setting email is unverified', () => {
+      mockDB.getSecondaryEmail = sinon.spy(() => {
+        return P.resolve({
+          uid: mockRequest.auth.credentials.uid,
+          isVerified: false,
+          isPrimary: false
+        })
+      })
+
+      route = getRoute(accountRoutes, '/recovery_email/set_primary')
+      return runTest(route, mockRequest, () => {
+        assert.fail('Should have changing email')
+      })
+        .catch((err) => {
+          assert.equal(err.errno, 147, 'correct errno changing email to unverified email')
+        })
+    })
+  })
+
   describe('can disable feature', () => {
     beforeEach(() => {
       accountRoutes = makeRoutes({
